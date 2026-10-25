@@ -40,34 +40,37 @@ La **publique** (`~/.ssh/oracle.pub`, une seule ligne) va dans les secrets.
 
 ## 3. Renseigner les secrets GitHub
 
-Depuis ce dossier, une commande par secret (elles ouvrent une saisie, rien
-n'apparaît en clair dans l'historique) :
+Depuis ce dossier (PowerShell), en remplaçant les valeurs par les tiennes :
 
 ```bash
-gh secret set OCI_USER_OCID
+gh secret set OCI_USER_OCID --body "ocid1.user.oc1..REMPLACE"
 ```
 
 ```bash
-gh secret set OCI_TENANCY_OCID
+gh secret set OCI_TENANCY_OCID --body "ocid1.tenancy.oc1..REMPLACE"
 ```
 
 ```bash
-gh secret set OCI_FINGERPRINT
+gh secret set OCI_FINGERPRINT --body "aa:bb:cc:dd:REMPLACE"
 ```
 
 ```bash
-gh secret set OCI_REGION
+gh secret set OCI_REGION --body "eu-paris-1"
 ```
 
 ```bash
-gh secret set SSH_PUBLIC_KEY
+Get-Content "$HOME\.ssh\oracle.pub" -Raw | gh secret set SSH_PUBLIC_KEY
 ```
 
-La clé privée se pousse directement depuis le fichier `.pem` :
+La clé privée se pousse directement depuis le fichier `.pem` téléchargé
+(PowerShell ne gère pas `<`, d'où le pipe) :
 
 ```bash
-gh secret set OCI_KEY_CONTENT < ~/Downloads/oracle_api_key.pem
+Get-Content "$HOME\Downloads\LE_FICHIER.pem" -Raw | gh secret set OCI_KEY_CONTENT
 ```
+
+Le script normalise les fins de ligne Windows et refuse de démarrer avec un
+secret malformé, en disant précisément lequel.
 
 Secrets **optionnels** : `OCI_KEY_PASSPHRASE` (si ta clé en a une),
 `OCI_COMPARTMENT_OCID` (par défaut = le tenancy, ce qui est correct en free tier),

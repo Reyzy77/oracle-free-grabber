@@ -102,8 +102,14 @@ def build_config():
     key_file = os.environ.get("OCI_KEY_FILE", "")
 
     if key_content:
-        # Les secrets peuvent arriver avec des \n litteraux : on repare.
-        key_content = key_content.replace("\\n", "\n").strip() + "\n"
+        # Les secrets peuvent arriver avec des \n litteraux (copier-coller)
+        # ou des fins de ligne Windows (pipe PowerShell) : on normalise.
+        key_content = key_content.replace("\\n", "\n")
+        key_content = key_content.replace("\r\n", "\n").replace("\r", "\n")
+        key_content = key_content.strip() + "\n"
+        if "PRIVATE KEY" not in key_content:
+            die("OCI_KEY_CONTENT ne ressemble pas a une cle PEM "
+                "(aucune ligne BEGIN ... PRIVATE KEY trouvee)")
         key_file = os.path.abspath("oci_api_key.pem")
         with open(key_file, "w", newline="\n") as fh:
             fh.write(key_content)
@@ -125,7 +131,21 @@ def build_config():
     if passphrase:
         config["pass_phrase"] = passphrase
 
-    oci.config.validate_config(config)
+    try:
+        oci.config.validate_config(config)
+    except oci.exceptions.InvalidConfig as err:
+        hints = {
+            "user": "doit commencer par ocid1.user.",
+            "tenancy": "doit commencer par ocid1.tenancy.",
+            "fingerprint": "format attendu aa:bb:cc:... (32 octets hex)",
+            "region": "identifiant de region, ex. eu-paris-1",
+            "key_file": "chemin de la cle privee introuvable",
+        }
+        details = ", ".join(
+            k.upper() + " " + str(v) + " (" + hints.get(k, "") + ")"
+            for k, v in err.args[0].items()
+        )
+        die("Secrets OCI invalides -> " + details)
     return config
 
 
