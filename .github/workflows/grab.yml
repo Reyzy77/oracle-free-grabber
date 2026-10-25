@@ -83,19 +83,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           {
-            echo "La machine Always Free a ete obtenue."
+            echo "@${{ github.repository_owner }} la machine Always Free a ete obtenue."
             echo
             echo '```'
             cat SUCCESS.txt
             echo '```'
             echo
-            echo "Connexion : \`ssh ubuntu@${{ steps.grab.outputs.instance_ip }}\`"
+            echo "Connexion : \`ssh -i ~/.ssh/oracle ubuntu@${{ steps.grab.outputs.instance_ip }}\`"
             echo
             echo "Le workflow planifie a ete desactive pour ne plus tourner."
           } > body.md
+          # La mention + l'assignation garantissent un e-mail : la categorie
+          # "Participating, @mentions" est activee par defaut sur GitHub,
+          # contrairement aux notifications de simple suivi de depot.
           gh issue create \
             --title "Machine Oracle obtenue : ${{ steps.grab.outputs.instance_ip }}" \
-            --body-file body.md
+            --body-file body.md \
+            --assignee "${{ github.repository_owner }}"
 
       - name: Stop the scheduled workflow
         if: steps.grab.outputs.grabbed == 'true'
