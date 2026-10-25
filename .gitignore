@@ -1,0 +1,7 @@
+oci_api_key.pem
+*.pem
+SUCCESS.txt
+body.md
+__pycache__/
+.venv/
+.env

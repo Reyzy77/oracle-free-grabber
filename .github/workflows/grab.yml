@@ -1,0 +1,104 @@
+name: Grab Oracle Free Tier VM
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Relance toutes les 10 minutes. Comme un job tourne ~5h30, le cron
+    # sert de relais : des qu'un job se termine sans succes, le suivant
+    # reprend. La boucle ne s'arrete donc jamais tant que rien n'est obtenu.
+    - cron: "*/10 * * * *"
+
+# Un seul job a la fois, et on ne tue JAMAIS celui qui tourne.
+concurrency:
+  group: oracle-grab
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+jobs:
+  grab:
+    runs-on: ubuntu-latest
+    # Limite dure GitHub = 6h. On s'arrete avant pour sortir proprement.
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install OCI SDK
+        run: pip install --upgrade -r requirements.txt
+
+      - name: Grab the biggest Always Free machine
+        id: grab
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_KEY_CONTENT: ${{ secrets.OCI_KEY_CONTENT }}
+          OCI_KEY_PASSPHRASE: ${{ secrets.OCI_KEY_PASSPHRASE }}
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          OCI_SUBNET_OCID: ${{ secrets.OCI_SUBNET_OCID }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          # Toujours la plus grosse : 4 OCPU / 24 GB (max Always Free).
+          SHAPE_LADDER: ${{ vars.SHAPE_LADDER || '4:24' }}
+          BOOT_VOLUME_GB: ${{ vars.BOOT_VOLUME_GB || '50' }}
+          OS_VERSION: ${{ vars.OS_VERSION || '24.04' }}
+          DISPLAY_NAME: ${{ vars.DISPLAY_NAME || 'free-a1-grabbed' }}
+          RETRY_DELAY: ${{ vars.RETRY_DELAY || '60' }}
+          MAX_RUNTIME_MIN: "330"
+        run: |
+          set +e
+          python scripts/grab.py
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          # 75 = pas de capacite pour l'instant, c'est normal : le cron relance.
+          if [ "$code" = "75" ]; then
+            echo "::notice::Pas de capacite sur ce passage. Relance automatique."
+            exit 0
+          fi
+          exit $code
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grab-result-${{ github.run_id }}
+          path: SUCCESS.txt
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Open an issue with the machine details
+        if: steps.grab.outputs.grabbed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "La machine Always Free a ete obtenue."
+            echo
+            echo '```'
+            cat SUCCESS.txt
+            echo '```'
+            echo
+            echo "Connexion : \`ssh ubuntu@${{ steps.grab.outputs.instance_ip }}\`"
+            echo
+            echo "Le workflow planifie a ete desactive pour ne plus tourner."
+          } > body.md
+          gh issue create \
+            --title "Machine Oracle obtenue : ${{ steps.grab.outputs.instance_ip }}" \
+            --body-file body.md
+
+      - name: Stop the scheduled workflow
+        if: steps.grab.outputs.grabbed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow disable "Grab Oracle Free Tier VM" || true

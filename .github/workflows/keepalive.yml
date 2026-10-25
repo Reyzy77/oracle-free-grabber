@@ -1,0 +1,25 @@
+name: Keepalive
+
+# GitHub desactive les workflows planifies apres 60 jours sans activite
+# sur le depot. Ce job pousse un micro-commit chaque semaine pour que
+# le grabber continue a tourner indefiniment.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .keepalive
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .keepalive
+          git commit -m "chore: keepalive" || exit 0
+          git push
