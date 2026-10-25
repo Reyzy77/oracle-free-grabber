@@ -3,10 +3,16 @@ name: Grab Oracle Free Tier VM
 on:
   workflow_dispatch:
   schedule:
-    # Relance toutes les 10 minutes. Comme un job tourne ~5h30, le cron
-    # sert de relais : des qu'un job se termine sans succes, le suivant
-    # reprend. La boucle ne s'arrete donc jamais tant que rien n'est obtenu.
-    - cron: "*/10 * * * *"
+    # Relance chaque heure. Comme un job tourne ~5h30, il y a toujours un
+    # run en attente pret a prendre le relais des qu'un job se termine :
+    # la boucle ne s'arrete jamais tant que rien n'est obtenu.
+    #
+    # Pourquoi pas plus souvent : GitHub ne garde qu'UN seul run en attente
+    # par groupe de concurrency et annule le precedent. Un cron agressif
+    # generait donc des runs "cancelled" a repetition, et autant de mails
+    # de notification inutiles. Une fois par heure suffit largement, la
+    # marge est de 5h30.
+    - cron: "7 * * * *"
 
 # Un seul job a la fois, et on ne tue JAMAIS celui qui tourne.
 concurrency:
